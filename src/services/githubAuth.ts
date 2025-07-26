@@ -26,12 +26,10 @@ export class GitHubAuthService {
    */
   static async signInWithGitHub(): Promise<{ success: boolean; user?: any; error?: string }> {
     try {
-      // Clear any existing session first
-      await supabase.auth.signOut();
-      
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'github',
         options: {
+          scopes: 'read:user user:email',
           redirectTo: `${window.location.origin}/auth/callback?source=github`
         }
       });
