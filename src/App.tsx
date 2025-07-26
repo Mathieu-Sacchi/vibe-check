@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Shield, Upload, Github, Copy, AlertTriangle, CheckCircle, XCircle } from 'lucide-react';
+import { Shield, Upload, Github, Copy, AlertTriangle, CheckCircle, XCircle, X } from 'lucide-react';
 import axios from 'axios';
 import toast, { Toaster } from 'react-hot-toast';
 
@@ -22,6 +22,11 @@ interface CategoryAnalysis {
   top_concern: string;
 }
 
+interface NextStep {
+  priority?: 'immediate' | 'high' | 'medium' | 'low';
+  actions?: string | string[];
+}
+
 interface AnalysisResult {
   score: number;
   project_type: string;
@@ -29,7 +34,7 @@ interface AnalysisResult {
   critical_issues: CriticalIssue[];
   categories_analyzed: CategoryAnalysis[];
   positive_findings: string[];
-  next_steps: string[];
+  next_steps: (string | NextStep)[];
   analyzedAt: string;
   source: string;
   filesAnalyzed?: number;
@@ -45,6 +50,7 @@ function App() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [abortController, setAbortController] = useState<AbortController | null>(null);
 
   // Persistent logging - these logs will stay in console
   useEffect(() => {
@@ -146,6 +152,10 @@ function App() {
       return;
     }
 
+    // Create abort controller for cancellation
+    const controller = new AbortController();
+    setAbortController(controller);
+
     setIsAnalyzing(true);
     setError(null);
     setResult(null);
@@ -165,11 +175,12 @@ function App() {
       }
 
       console.log('📡 Sending request to backend...');
-      const response = await axios.post('http://localhost:4000/analyze', formData, {
+      const response = await axios.post('http://127.0.0.1:4000/analyze', formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
-        timeout: 120000,
+        timeout: 60000, // 1 minute for optimized Claude analysis
+        signal: controller.signal,
         validateStatus: function (status) {
           return status < 500;
         }
@@ -186,6 +197,13 @@ function App() {
       
     } catch (err: any) {
       console.log('❌ Analysis error occurred:', err);
+      
+      if (err.name === 'AbortError') {
+        console.log('🛑 Analysis cancelled by user');
+        toast.success('Analysis cancelled');
+        return;
+      }
+      
       console.log('🔍 Error details:', {
         message: err.message,
         response: err.response?.data,
@@ -198,7 +216,15 @@ function App() {
       console.log('💥 Error toast shown');
     } finally {
       setIsAnalyzing(false);
+      setAbortController(null);
       console.log('🏁 Analysis process completed');
+    }
+  };
+
+  const stopAnalysis = () => {
+    if (abortController) {
+      abortController.abort();
+      console.log('🛑 Analysis cancellation requested');
     }
   };
 
@@ -273,24 +299,42 @@ function App() {
               </div>
             )}
 
-            {/* Analyze Button */}
-            <button
-              onClick={analyze}
-              disabled={isAnalyzing || (!githubUrl && !selectedFile)}
-              className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 disabled:from-gray-600 disabled:to-gray-600 text-white font-semibold py-3 px-6 rounded-xl transition-all duration-200 flex items-center justify-center space-x-2 disabled:cursor-not-allowed"
-            >
-              {isAnalyzing ? (
-                <>
-                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                  <span>Analyzing...</span>
-                </>
-              ) : (
-                <>
-                  <Shield className="w-5 h-5" />
-                  <span>Analyze Repository</span>
-                </>
+            {/* Analyze/Stop Button */}
+            <div className="flex space-x-3">
+              <button
+                onClick={analyze}
+                disabled={isAnalyzing || (!githubUrl && !selectedFile)}
+                className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 disabled:from-gray-600 disabled:to-gray-600 text-white font-semibold py-3 px-6 rounded-xl transition-all duration-200 flex items-center justify-center space-x-2 disabled:cursor-not-allowed"
+              >
+                {isAnalyzing ? (
+                  <>
+                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                    <span>Analyzing with Claude AI...</span>
+                  </>
+                ) : (
+                  <>
+                    <Shield className="w-5 h-5" />
+                    <span>Analyze Repository</span>
+                  </>
+                )}
+              </button>
+              
+              {isAnalyzing && (
+                <button
+                  onClick={stopAnalysis}
+                  className="bg-red-600 hover:bg-red-700 text-white font-semibold py-3 px-6 rounded-xl transition-all duration-200 flex items-center justify-center space-x-2"
+                >
+                  <X className="w-5 h-5" />
+                  <span>Stop</span>
+                </button>
               )}
-            </button>
+            </div>
+            
+            {isAnalyzing && (
+              <div className="text-center">
+                <div className="text-xs text-white/60">This should take 30-60 seconds</div>
+              </div>
+            )}
           </div>
         </form>
 
@@ -364,14 +408,55 @@ function App() {
               <div className="bg-white/10 backdrop-blur-sm rounded-2xl border border-white/20 p-8">
                 <h3 className="text-xl font-semibold text-white mb-6">Recommended Next Steps</h3>
                 <div className="space-y-3">
-                  {result.next_steps.map((step, index) => (
-                    <div key={index} className="flex items-start space-x-3">
-                      <div className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0">
-                        {index + 1}
-                      </div>
-                      <span className="text-white/80">{step}</span>
-                    </div>
-                  ))}
+                  {result.next_steps.map((step, index) => {
+                    // Handle both string and object formats from Claude
+                    if (typeof step === 'string') {
+                      return (
+                        <div key={index} className="flex items-start space-x-3">
+                          <div className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0">
+                            {index + 1}
+                          </div>
+                          <span className="text-white/80">{step}</span>
+                        </div>
+                      );
+                    } else if (typeof step === 'object' && step.priority && step.actions) {
+                      // Handle object format with priority and actions
+                      return (
+                        <div key={index} className="bg-white/10 border border-white/20 rounded-xl p-4">
+                          <div className="flex items-center space-x-3 mb-3">
+                            <div className={`w-6 h-6 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0 ${
+                              step.priority === 'immediate' ? 'bg-red-600 text-white' :
+                              step.priority === 'high' ? 'bg-orange-600 text-white' :
+                              'bg-blue-600 text-white'
+                            }`}>
+                              {index + 1}
+                            </div>
+                            <span className="text-white font-medium capitalize">{step.priority} Priority</span>
+                          </div>
+                          <div className="space-y-2 ml-9">
+                            {Array.isArray(step.actions) ? step.actions.map((action, actionIndex) => (
+                              <div key={actionIndex} className="flex items-start space-x-2">
+                                <span className="text-white/60 text-xs mt-1">•</span>
+                                <span className="text-white/80 text-sm">{action}</span>
+                              </div>
+                            )) : (
+                              <span className="text-white/80 text-sm">{step.actions}</span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    } else {
+                      // Fallback for any other format
+                      return (
+                        <div key={index} className="flex items-start space-x-3">
+                          <div className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0">
+                            {index + 1}
+                          </div>
+                          <span className="text-white/80">{JSON.stringify(step)}</span>
+                        </div>
+                      );
+                    }
+                  })}
                 </div>
               </div>
             )}

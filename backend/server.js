@@ -22,6 +22,6 @@ app.get('/', (req, res) => {
   res.json({ message: '🚀 VibeCheck Backend is running!' });
 });
 
-app.listen(PORT, () => {
-  console.log(`🚀 VibeCheck Backend running on http://localhost:${PORT}`);
+app.listen(PORT, '127.0.0.1', () => {
+  console.log(`🚀 VibeCheck Backend running on http://127.0.0.1:${PORT}`);
 });

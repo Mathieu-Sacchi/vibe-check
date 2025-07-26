@@ -185,52 +185,51 @@ async function analyzeRepo(files) {
   console.log(`🔍 Starting Claude analysis of ${files.length} files...`);
   
   try {
-    // Phase 1: Per-file analysis
-    const fileAnalyses = [];
-    const topFiles = files.slice(0, 10); // Analyze top 10 files
+    // Single-pass analysis: Read top 3 files and analyze together
+    const topFiles = files.slice(0, 3); // Analyze only top 3 files
+    const fileContents = [];
     
     for (const filePath of topFiles) {
       try {
-        console.log(`📄 Analyzing file: ${path.basename(filePath)}`);
+        console.log(`📄 Reading file: ${path.basename(filePath)}`);
         const content = await fs.readFile(filePath, 'utf8');
-        const analysis = await analyzeFile(filePath, content);
-        fileAnalyses.push({
+        const chunkedContent = content.length > 2000 ? 
+          content.substring(0, 2000) + '\n\n[Content truncated - file too large]' : 
+          content;
+        
+        fileContents.push({
           file: path.relative(process.cwd(), filePath),
-          analysis: analysis
+          content: chunkedContent
         });
       } catch (error) {
-        console.log(`⚠️ Failed to analyze ${filePath}:`, error.message);
+        console.log(`⚠️ Failed to read ${filePath}:`, error.message);
       }
     }
     
-    // Phase 2: Holistic analysis with aggregated findings
-    console.log('🧠 Performing holistic analysis...');
+    // Single comprehensive analysis
+    console.log('🧠 Performing comprehensive analysis...');
     
-    const aggregatedData = fileAnalyses.map(fa => 
-      `File: ${fa.file}\nAnalysis: ${JSON.stringify(fa.analysis, null, 2)}`
-    ).join('\n\n---\n\n');
-    
-    const holisticMessage = `Perform a final holistic audit based on the per-file analyses:
+    const analysisMessage = `Analyze these code files for a comprehensive repository audit:
 
-${aggregatedData}
+${fileContents.map(f => `File: ${f.file}\nContent:\n${f.content}`).join('\n\n---\n\n')}
 
-Provide a comprehensive repository-wide assessment with:
+Provide a complete analysis including:
 1. Overall security score and critical issues
-2. Cross-file patterns and architectural concerns
-3. Prioritized recommendations
-4. Project type classification
-5. Next steps for improvement
+2. Project type classification
+3. Category breakdown (security, performance, quality, etc.)
+4. Positive findings and recommendations
+5. Prioritized next steps
 
 Focus on the most critical findings and provide actionable insights.`;
 
-    const holisticResponse = await callClaude(MASTER_SYSTEM_PROMPT, holisticMessage);
-    const finalAnalysis = await parseJSONResponse(holisticResponse);
+    const response = await callClaude(MASTER_SYSTEM_PROMPT, analysisMessage);
+    const finalAnalysis = await parseJSONResponse(response);
     
     // Add metadata
     finalAnalysis.analyzedAt = new Date().toISOString();
-    finalAnalysis.filesAnalyzed = fileAnalyses.length;
+    finalAnalysis.filesAnalyzed = fileContents.length;
     finalAnalysis.totalFiles = files.length;
-    finalAnalysis.analysisCompleteness = files.length > 10 ? 'partial' : 'complete';
+    finalAnalysis.analysisCompleteness = files.length > 3 ? 'partial' : 'complete';
     
     console.log('✅ Claude analysis completed successfully');
     return finalAnalysis;
