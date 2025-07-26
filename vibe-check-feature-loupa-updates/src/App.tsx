@@ -1,6 +1,5 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import { Toaster } from 'react-hot-toast';
 import { AuthProvider } from './contexts/AuthContext';
 import { Header } from './components/layout/Header';
 import { Footer } from './components/layout/Footer';
@@ -53,7 +52,6 @@ function App() {
           </main>
           <Footer />
         </div>
-        <Toaster position="top-right" />
       </Router>
     </AuthProvider>
   );

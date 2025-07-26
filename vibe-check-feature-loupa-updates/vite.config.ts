@@ -7,15 +7,4 @@ export default defineConfig({
   optimizeDeps: {
     exclude: ['lucide-react'],
   },
-  server: {
-    watch: {
-      ignored: [
-        '**/backend/**',
-        '**/temp_repos/**',
-        '**/temp_uploads/**',
-        '**/node_modules/**',
-        '**/.git/**'
-      ]
-    }
-  }
 });

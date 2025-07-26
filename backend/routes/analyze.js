@@ -7,7 +7,22 @@ const { analyzeWithAI, analyzeRepo, findCodeFiles } = require('../services/ai');
 const router = express.Router();
 
 // Configure multer for file uploads
-const upload = multer({ dest: 'temp_uploads/' });
+const upload = multer({ 
+  dest: 'temp_uploads/',
+  limits: { 
+    fileSize: 100 * 1024 * 1024 // 100MB limit
+  },
+  fileFilter: (req, file, cb) => {
+    // Accept ZIP files only
+    if (file.mimetype === 'application/zip' || 
+        file.mimetype === 'application/x-zip-compressed' ||
+        file.originalname.toLowerCase().endsWith('.zip')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only ZIP files are allowed'), false);
+    }
+  }
+});
 
 router.post('/', upload.single('repo'), async (req, res) => {
   let tempPath = null;
@@ -32,7 +47,18 @@ router.post('/', upload.single('repo'), async (req, res) => {
       await cloneRepo(githubUrl, tempPath);
     } else {
       console.log(`📦 Extracting uploaded file: ${uploadedFile.originalname}`);
-      await extractZip(uploadedFile.path, tempPath);
+      
+      // Validate that it's actually a ZIP file
+      if (!uploadedFile.originalname.toLowerCase().endsWith('.zip')) {
+        throw new Error('Only ZIP files are supported for upload');
+      }
+      
+      try {
+        await extractZip(uploadedFile.path, tempPath);
+      } catch (error) {
+        console.error('ZIP extraction failed:', error.message);
+        throw new Error(`Failed to extract ZIP file: ${error.message}. Please ensure you uploaded a valid ZIP file.`);
+      }
     }
 
     // Run security scanners first
@@ -58,7 +84,7 @@ router.post('/', upload.single('repo'), async (req, res) => {
       console.log('🤖 No scanner results, using Claude analysis...');
       const files = await findCodeFiles(tempPath);
       analysisResult = await analyzeRepo(files);
-      analysisResult.analysis_method = 'claude_only';
+      // analysis_method is already set by the multi-agent system
     }
 
     // Add source information

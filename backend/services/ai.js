@@ -4,89 +4,205 @@ const path = require('path');
 
 let anthropicClient = null;
 
-// Master System Prompt for Claude
-const MASTER_SYSTEM_PROMPT = `VibeCheck Master Code Auditor
+// Multi-Agent System Prompts
 
-You are a comprehensive code auditor that analyzes repositories for security, quality, performance, architecture, and compliance issues.
+// 1. CONTEXT AGENT - Project Understanding
+const CONTEXT_PROMPT = `You are a project context specialist analyzing codebases for architectural understanding.
 
-⸻
-
-🎯 Analysis Framework
-
-Conduct analysis in these phases, leveraging full codebase context:
-	1.	Security Scan - Vulnerabilities, exposed secrets, authentication issues
-	2.	Architecture Review - Structure, dependencies, design patterns
-	3.	Performance Analysis - Bottlenecks, inefficient operations, resource usage
-	4.	Quality Assessment - Maintainability, testing coverage, code complexity
-	5.	Frontend Optimization - Bundle size, loading performance, caching (if applicable)
-	6.	SEO & Accessibility - Meta tags, semantic HTML, accessibility (if applicable)
-	7.	Compliance Check - Licensing, PII handling, regulatory requirements
-	8.	Deployment Readiness - Configuration management, environment handling
-
-⸻
-
-🎯 Scoring Rubric
-	•	90-100: Production-ready
-	•	70-89: Good with minor improvements
-	•	50-69: Moderate issues
-	•	30-49: Significant problems
-	•	0-29: Critical risks
-
-Weighting:
-	•	Security: 40%
-	•	Performance & Architecture: 25%
-	•	Quality & Testing: 20%
-	•	Compliance & SEO: 15%
-
-⸻
-
-🎯 Analysis Instructions
-	1.	Detect project type automatically (backend, frontend, fullstack, mobile, library)
-	2.	Adjust category coverage based on project type
-	3.	Focus on security-sensitive and critical business logic
-	4.	Cross-link issues where relevant (e.g., performance vs security tradeoffs)
-	5.	Note skipped categories and explain why
-
-⸻
-
-✅ Output Format
-
-Return ONLY a JSON object:
+Analyze the provided code repository and return ONLY this JSON:
 
 {
-"score": 0-100,
-"project_type": "backend|frontend|fullstack|mobile|library|other",
-"summary": "2-3 sentence overview",
-"critical_issues": [
+  "project_type": "backend|frontend|fullstack|mobile|library|other",
+  "primary_language": "main programming language",
+  "framework": "main framework/library used",
+  "architecture_pattern": "MVC|microservices|monolith|JAMstack|other",
+  "file_structure": {
+    "total_files": "number",
+    "key_directories": ["dir1", "dir2"],
+    "entry_points": ["main.js", "index.html"],
+    "config_files": ["package.json", "requirements.txt"]
+  },
+  "dependencies": {
+    "production": ["dep1", "dep2"],
+    "development": ["dep1", "dep2"],
+    "security_relevant": ["auth-lib", "crypto-lib"]
+  },
+  "architecture_notes": "Brief architectural overview and patterns used"
+}
+
+Focus only on understanding the project structure and technical context.`;
+
+// 2. SECURITY AGENT - Security Analysis
+const SECURITY_PROMPT = `You are a security specialist analyzing code for vulnerabilities.
+
+Based on this project context: {{CONTEXT_FROM_AGENT_1}}
+
+Analyze the codebase for security issues and return ONLY this JSON:
+
 {
-"category": "security|performance|quality|compliance|architecture",
-"severity": "critical|high|medium|low",
-"title": "Brief issue title",
-"description": "Detailed explanation",
-"files_affected": ["file1.js"],
-"line_ranges": [[10,15]],
-"impact": "Business/technical impact",
-"recommendation": "Actionable fix",
-"cursor_prompt": "Copy-pasteable fix instruction for Cursor IDE"
+  "security_score": "0-100",
+  "critical_vulnerabilities": [
+    {
+      "type": "injection|auth|secrets|crypto|other",
+      "severity": "critical|high|medium|low",
+      "file": "filename",
+      "line_range": ["start", "end"],
+      "description": "Detailed vulnerability description",
+      "exploit_scenario": "How this could be exploited",
+      "fix": "Specific remediation steps"
+    }
+  ],
+  "security_patterns": {
+    "authentication": "assessment of auth implementation",
+    "authorization": "assessment of access controls", 
+    "input_validation": "assessment of input sanitization",
+    "secret_management": "assessment of secret handling",
+    "crypto_usage": "assessment of cryptographic implementations"
+  },
+  "security_recommendations": ["priority ordered list of security improvements"]
 }
-],
-"categories_analyzed": [
+
+Focus ONLY on security aspects. Ignore performance, code quality, or other concerns.`;
+
+// 3. PERFORMANCE AGENT - Performance Analysis
+const PERFORMANCE_PROMPT = `You are a performance specialist analyzing code for efficiency issues.
+
+Based on this project context: {{CONTEXT_FROM_AGENT_1}}
+
+Analyze the codebase for performance issues and return ONLY this JSON:
+
 {
-"name": "security|performance|quality|frontend|seo|compliance|architecture",
-"score": 0-100,
-"issues_found": 5,
-"top_concern": "Main issue for this category"
+  "performance_score": "0-100",
+  "bottlenecks": [
+    {
+      "type": "database|algorithm|memory|network|io|other",
+      "severity": "critical|high|medium|low",
+      "file": "filename", 
+      "line_range": ["start", "end"],
+      "description": "Performance issue description",
+      "impact": "Expected performance impact",
+      "optimization": "Specific optimization recommendation"
+    }
+  ],
+  "performance_patterns": {
+    "database_queries": "assessment of query efficiency",
+    "caching_strategy": "assessment of caching implementation",
+    "algorithm_complexity": "assessment of algorithmic efficiency",
+    "resource_usage": "assessment of memory/CPU usage",
+    "async_patterns": "assessment of async/concurrency usage"
+  },
+  "performance_recommendations": ["priority ordered list of performance improvements"]
 }
-],
-"positive_findings": [
-"Good practices worth noting"
-],
-"next_steps": [
-"Prioritized recommended actions"
-]
+
+Focus ONLY on performance and efficiency. Ignore security, code quality, or other concerns.`;
+
+// 4. QUALITY AGENT - Code Quality Analysis
+const QUALITY_PROMPT = `You are a code quality specialist analyzing maintainability and best practices.
+
+Based on this project context: {{CONTEXT_FROM_AGENT_1}}
+
+Analyze the codebase for quality issues and return ONLY this JSON:
+
+{
+  "quality_score": "0-100",
+  "quality_issues": [
+    {
+      "type": "complexity|duplication|naming|structure|testing|other",
+      "severity": "critical|high|medium|low",
+      "file": "filename",
+      "line_range": ["start", "end"], 
+      "description": "Quality issue description",
+      "maintainability_impact": "How this affects code maintainability",
+      "refactoring": "Specific refactoring recommendation"
+    }
+  ],
+  "quality_patterns": {
+    "code_complexity": "assessment of cyclomatic complexity",
+    "test_coverage": "assessment of testing implementation",
+    "error_handling": "assessment of error management",
+    "code_duplication": "assessment of DRY principle adherence",
+    "naming_conventions": "assessment of naming consistency"
+  },
+  "quality_recommendations": ["priority ordered list of quality improvements"]
 }
-	•	No markdown, no explanations outside JSON
-	•	If analysis is partial (large repo), include "analysis_completeness": "partial"`;
+
+Focus ONLY on code quality and maintainability. Ignore security, performance, or other concerns.`;
+
+// 5. FRONTEND AGENT - Frontend/SEO Analysis
+const FRONTEND_PROMPT = `You are a frontend optimization and SEO specialist.
+
+Based on this project context: {{CONTEXT_FROM_AGENT_1}}
+
+If this is a frontend or fullstack project, analyze for frontend/SEO issues. If not frontend, return minimal response.
+
+Return ONLY this JSON:
+
+{
+  "frontend_applicable": "true|false",
+  "frontend_score": "0-100",
+  "frontend_issues": [
+    {
+      "type": "bundle|seo|accessibility|performance|other",
+      "severity": "critical|high|medium|low",
+      "file": "filename",
+      "description": "Frontend issue description", 
+      "user_impact": "How this affects user experience",
+      "optimization": "Specific optimization recommendation"
+    }
+  ],
+  "frontend_patterns": {
+    "bundle_optimization": "assessment of bundle size and loading",
+    "seo_implementation": "assessment of SEO best practices",
+    "accessibility": "assessment of accessibility compliance",
+    "responsive_design": "assessment of mobile responsiveness"
+  },
+  "frontend_recommendations": ["priority ordered list of frontend improvements"]
+}
+
+Focus ONLY on frontend optimization and SEO. Ignore backend concerns.`;
+
+// 6. AGGREGATION AGENT - Final Synthesis
+const AGGREGATION_PROMPT = `You are aggregating analysis results from multiple specialists.
+
+You have received these analysis results:
+- Context: {{CONTEXT_RESULTS}}
+- Security: {{SECURITY_RESULTS}}  
+- Performance: {{PERFORMANCE_RESULTS}}
+- Quality: {{QUALITY_RESULTS}}
+- Frontend: {{FRONTEND_RESULTS}}
+
+Aggregate these into a final comprehensive report. Return ONLY this JSON:
+
+{
+  "overall_score": "0-100",
+  "methodology": "multi-agent sequential analysis",
+  "summary": "2-3 sentence overall assessment",
+  "critical_issues": [
+    {
+      "category": "security|performance|quality|frontend",
+      "severity": "critical|high|medium|low",
+      "source_analysis": "which specialist identified this",
+      "title": "Brief issue title",
+      "description": "Consolidated description",
+      "files_affected": ["file1", "file2"],
+      "recommendation": "Prioritized fix recommendation"
+    }
+  ],
+  "category_scores": {
+    "security": "0-100",
+    "performance": "0-100", 
+    "quality": "0-100",
+    "frontend": "0-100"
+  },
+  "cross_cutting_insights": ["Issues that span multiple categories or weren't caught by individual specialists"],
+  "specialist_agreement": {
+    "conflicting_recommendations": [],
+    "reinforcing_findings": []
+  },
+  "next_steps": ["Prioritized action items"]
+}
+
+Focus on identifying patterns across analyses and any gaps between specialist findings.`;
 
 function getAnthropicClient() {
   if (!anthropicClient) {
@@ -156,37 +272,37 @@ Please provide ONLY the JSON object, no other text or explanations.`;
   return parseJSONResponse(retryResponse);
 }
 
-async function analyzeFile(filePath, fileContent) {
-  const relativePath = path.relative(process.cwd(), filePath);
-  const chunkedContent = fileContent.length > 3000 ? 
-    fileContent.substring(0, 3000) + '\n\n[Content truncated - file too large]' : 
-    fileContent;
+async function analyzeWithAgent(agentPrompt, codebaseContent, contextData = null) {
+  let prompt = agentPrompt;
   
-  const userMessage = `Analyze this file as part of the repository audit:
+  // Replace context placeholders if provided
+  if (contextData) {
+    prompt = prompt.replace('{{CONTEXT_FROM_AGENT_1}}', JSON.stringify(contextData));
+  }
+  
+  const userMessage = contextData ? 
+    `Codebase to analyze:\n${codebaseContent}` : 
+    `Analyze this codebase:\n${codebaseContent}`;
 
-File: ${relativePath}
-Content:
-${chunkedContent}
-
-Provide a focused analysis of this specific file for security, quality, and performance issues.`;
-
+  let response;
   try {
-    const response = await callClaude(MASTER_SYSTEM_PROMPT, userMessage);
+    response = await callClaude(prompt, userMessage);
     return await parseJSONResponse(response);
   } catch (error) {
     if (error.message.includes('Invalid JSON')) {
-      return await retryWithJSONFix(response, MASTER_SYSTEM_PROMPT, userMessage);
+      return await retryWithJSONFix(response || '', prompt, userMessage);
     }
     throw error;
   }
 }
 
 async function analyzeRepo(files) {
-  console.log(`🔍 Starting Claude analysis of ${files.length} files...`);
+  console.log(`🔍 Starting Multi-Agent Claude analysis of ${files.length} files...`);
   
   try {
-    // Single-pass analysis: Read top 3 files and analyze together
-    const topFiles = files.slice(0, 3); // Analyze only top 3 files
+    // Step 1: Context Analysis
+    console.log('🧠 Agent 1: Context Analysis...');
+    const topFiles = files.slice(0, 3);
     const fileContents = [];
     
     for (const filePath of topFiles) {
@@ -206,36 +322,65 @@ async function analyzeRepo(files) {
       }
     }
     
-    // Single comprehensive analysis
-    console.log('🧠 Performing comprehensive analysis...');
+    const codebaseContent = fileContents.map(f => `File: ${f.file}\nContent:\n${f.content}`).join('\n\n---\n\n');
     
-    const analysisMessage = `Analyze these code files for a comprehensive repository audit:
-
-${fileContents.map(f => `File: ${f.file}\nContent:\n${f.content}`).join('\n\n---\n\n')}
-
-Provide a complete analysis including:
-1. Overall security score and critical issues
-2. Project type classification
-3. Category breakdown (security, performance, quality, etc.)
-4. Positive findings and recommendations
-5. Prioritized next steps
-
-Focus on the most critical findings and provide actionable insights.`;
-
-    const response = await callClaude(MASTER_SYSTEM_PROMPT, analysisMessage);
-    const finalAnalysis = await parseJSONResponse(response);
+    // Step 1: Context Agent
+    const contextResults = await analyzeWithAgent(CONTEXT_PROMPT, codebaseContent);
+    console.log('✅ Context analysis completed');
+    
+    // Step 2: Security Agent
+    console.log('🔒 Agent 2: Security Analysis...');
+    const securityResults = await analyzeWithAgent(SECURITY_PROMPT, codebaseContent, contextResults);
+    console.log('✅ Security analysis completed');
+    
+    // Step 3: Performance Agent
+    console.log('⚡ Agent 3: Performance Analysis...');
+    const performanceResults = await analyzeWithAgent(PERFORMANCE_PROMPT, codebaseContent, contextResults);
+    console.log('✅ Performance analysis completed');
+    
+    // Step 4: Quality Agent
+    console.log('📝 Agent 4: Quality Analysis...');
+    const qualityResults = await analyzeWithAgent(QUALITY_PROMPT, codebaseContent, contextResults);
+    console.log('✅ Quality analysis completed');
+    
+    // Step 5: Frontend Agent
+    console.log('🎨 Agent 5: Frontend Analysis...');
+    const frontendResults = await analyzeWithAgent(FRONTEND_PROMPT, codebaseContent, contextResults);
+    console.log('✅ Frontend analysis completed');
+    
+    // Step 6: Aggregation Agent
+    console.log('🔄 Agent 6: Final Aggregation...');
+    const aggregationPrompt = AGGREGATION_PROMPT
+      .replace('{{CONTEXT_RESULTS}}', JSON.stringify(contextResults))
+      .replace('{{SECURITY_RESULTS}}', JSON.stringify(securityResults))
+      .replace('{{PERFORMANCE_RESULTS}}', JSON.stringify(performanceResults))
+      .replace('{{QUALITY_RESULTS}}', JSON.stringify(qualityResults))
+      .replace('{{FRONTEND_RESULTS}}', JSON.stringify(frontendResults));
+    
+    const finalResults = await analyzeWithAgent(aggregationPrompt, '');
+    console.log('✅ Aggregation completed');
     
     // Add metadata
-    finalAnalysis.analyzedAt = new Date().toISOString();
-    finalAnalysis.filesAnalyzed = fileContents.length;
-    finalAnalysis.totalFiles = files.length;
-    finalAnalysis.analysisCompleteness = files.length > 3 ? 'partial' : 'complete';
+    finalResults.analyzedAt = new Date().toISOString();
+    finalResults.filesAnalyzed = fileContents.length;
+    finalResults.totalFiles = files.length;
+    finalResults.analysisCompleteness = files.length > 3 ? 'partial' : 'complete';
+    finalResults.analysis_method = 'multi-agent';
+    finalResults.individualResults = {
+      context: contextResults,
+      security: securityResults,
+      performance: performanceResults,
+      quality: qualityResults,
+      frontend: frontendResults
+    };
     
-    console.log('✅ Claude analysis completed successfully');
-    return finalAnalysis;
+    console.log('✅ Multi-Agent Claude analysis completed successfully');
+    return finalResults;
     
   } catch (error) {
-    console.error('❌ Claude analysis failed:', error);
+    console.error('❌ Multi-Agent Claude analysis failed:', error);
+    console.error('❌ Error details:', error.message);
+    console.error('❌ Error stack:', error.stack);
     
     // Handle specific error types
     if (error.message.includes('AuthenticationError') || error.message.includes('API key')) {
@@ -257,7 +402,8 @@ Focus on the most critical findings and provide actionable insights.`;
         categories_analyzed: [],
         positive_findings: [],
         next_steps: ['Configure Anthropic API key for enhanced analysis'],
-        analyzedAt: new Date().toISOString()
+        analyzedAt: new Date().toISOString(),
+        analysis_method: 'multi-agent'
       };
     }
     
@@ -280,7 +426,8 @@ Focus on the most critical findings and provide actionable insights.`;
       categories_analyzed: [],
       positive_findings: [],
       next_steps: ['Perform manual code review'],
-      analyzedAt: new Date().toISOString()
+      analyzedAt: new Date().toISOString(),
+      analysis_method: 'multi-agent'
     };
   }
 }
@@ -309,7 +456,7 @@ async function findCodeFiles(dirPath) {
 
 // Legacy function for backward compatibility
 async function analyzeWithAI(repoPath) {
-  console.log('🔄 Using new Claude analysis...');
+  console.log('🔄 Using new Multi-Agent Claude analysis...');
   const files = await findCodeFiles(repoPath);
   return await analyzeRepo(files);
 }
