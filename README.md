@@ -40,7 +40,36 @@ AI-powered GitHub repository audit tool using Claude Code SDK.
 
 - `GET /health` - Health check
 - `GET /health?repo=<github-url>` - Test repository cloning (returns path and file count)
-- `POST /audit` - Audit a GitHub repository (coming soon)
+- `POST /audit` - Audit a GitHub repository
+
+### Using the Audit API
+
+**Basic audit request:**
+```bash
+curl -X POST http://localhost:3000/audit \
+  -H "Content-Type: application/json" \
+  -d '{"repoUrl":"https://github.com/octocat/Hello-World"}'
+```
+
+**Audit with custom prompts:**
+```bash
+curl -X POST http://localhost:3000/audit \
+  -H "Content-Type: application/json" \
+  -d '{
+    "repoUrl":"https://github.com/octocat/Hello-World",
+    "prompts":["Check for security vulnerabilities", "Review code quality"]
+  }'
+```
+
+**Response format:**
+```json
+{
+  "auditId": "550e8400-e29b-41d4-a716-446655440000",
+  "status": "completed",
+  "raw": [...],
+  "markdown": "/tmp/vibe-abc123/VIBECHECK_REPORT.md"
+}
+```
 
 ## Testing Repository Cloning
 
