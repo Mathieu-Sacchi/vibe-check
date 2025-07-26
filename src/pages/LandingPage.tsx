@@ -1,10 +1,39 @@
-import React from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { Shield, Zap, Code, CheckCircle, Github, Upload } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
+import { GitHubAuthService } from '../services/githubAuth';
+import { useAuth } from '../contexts/AuthContext';
 
 export const LandingPage: React.FC = () => {
+  const [isConnectingGitHub, setIsConnectingGitHub] = useState(false);
+  const { user } = useAuth();
+  const navigate = useNavigate();
+
+  // Redirect authenticated users to audit page
+  useEffect(() => {
+    if (user) {
+      navigate('/audit');
+    }
+  }, [user, navigate]);
+
+  const handleGitHubConnect = async () => {
+    setIsConnectingGitHub(true);
+    try {
+      const result = await GitHubAuthService.signInWithGitHub();
+      if (!result.success) {
+        alert('Failed to connect GitHub: ' + result.error);
+      }
+      // OAuth will redirect to callback page, so no need to handle success here
+    } catch (error) {
+      console.error('GitHub connection error:', error);
+      alert('Failed to connect GitHub. Please try again.');
+    } finally {
+      setIsConnectingGitHub(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-white">
       {/* Hero Section */}
@@ -22,17 +51,24 @@ export const LandingPage: React.FC = () => {
 
           <div className="flex flex-col sm:flex-row items-center justify-center space-y-4 sm:space-y-0 sm:space-x-6 pt-8">
             <div className="flex items-center space-x-4">
-              <Button size="lg" className="flex items-center space-x-2">
+              <Button 
+                size="lg" 
+                className="flex items-center space-x-2"
+                onClick={handleGitHubConnect}
+                disabled={isConnectingGitHub}
+              >
                 <Github className="h-5 w-5" />
-                <span>Connect GitHub</span>
+                <span>{isConnectingGitHub ? 'Connecting...' : 'Connect GitHub'}</span>
               </Button>
               
               <span className="text-gray-400">or</span>
               
-              <Button variant="outline" size="lg" className="flex items-center space-x-2">
-                <Upload className="h-5 w-5" />
-                <span>Upload Files</span>
-              </Button>
+              <Link to="/signup?source=upload">
+                <Button variant="outline" size="lg" className="flex items-center space-x-2">
+                  <Upload className="h-5 w-5" />
+                  <span>Upload Files</span>
+                </Button>
+              </Link>
             </div>
           </div>
         </div>
@@ -142,7 +178,7 @@ export const LandingPage: React.FC = () => {
           <p className="text-xl text-gray-600 max-w-2xl mx-auto">
             Join thousands of developers who trust VibeCheckr to keep their code secure, clean, and compliant.
           </p>
-          <Link to="/signup">
+          <Link to="/signup?source=cta">
             <Button size="lg">Start Free Analysis</Button>
           </Link>
         </Card>

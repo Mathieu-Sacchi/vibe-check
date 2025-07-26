@@ -54,9 +54,6 @@ export const Header: React.FC = () => {
                 >
                   Sign In
                 </Link>
-                <Link to="/signup">
-                  <Button size="sm">Get Started</Button>
-                </Link>
               </div>
             )}
           </nav>

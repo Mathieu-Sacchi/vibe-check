@@ -46,7 +46,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const signUp = async (email: string, password: string) => {
-    const { data, error } = await supabase.auth.signUp({ 
+    const { error } = await supabase.auth.signUp({ 
       email, 
       password,
       options: {
@@ -59,10 +59,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (error.message.includes('email_address_invalid')) {
         throw new Error('Please check your Supabase email configuration. Go to Authentication > Settings in your Supabase dashboard and ensure email service is properly configured.');
       }
+      if (error.message.includes('Database error saving new user')) {
+        throw new Error('Database configuration issue. Please run the fix-rls-policies.sql script in your Supabase dashboard.');
+      }
       throw error;
     }
     
-    return data;
+    // Don't return data to match Promise<void> type
   };
 
   const signOut = async () => {
