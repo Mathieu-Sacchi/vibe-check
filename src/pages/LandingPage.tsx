@@ -58,7 +58,7 @@ export const LandingPage: React.FC = () => {
                 disabled={isConnectingGitHub}
               >
                 <Github className="h-5 w-5" />
-                <span>{isConnectingGitHub ? 'Connecting...' : 'Connect GitHub'}</span>
+                <span>{isConnectingGitHub ? 'Connecting...' : 'Connect GitHub Repository'}</span>
               </Button>
               
               <span className="text-gray-400">or</span>

@@ -29,9 +29,6 @@ export const Header: React.FC = () => {
           <nav className="flex items-center space-x-6">
             {user ? (
               <>
-                <Link to="/audit" className="text-gray-700 hover:text-black transition-colors">
-                  Audit
-                </Link>
                 <Link to="/profile" className="text-gray-700 hover:text-black transition-colors flex items-center space-x-1">
                   <User className="h-4 w-4" />
                   <span>Profile</span>

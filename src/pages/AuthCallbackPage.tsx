@@ -40,10 +40,10 @@ export const AuthCallbackPage: React.FC = () => {
           // Wait a moment to show success, then redirect
           setTimeout(() => {
             if (source === 'github') {
-              // GitHub OAuth users are fully authenticated - go directly to audit page
-              navigate('/audit');
+              // GitHub OAuth users should select a repository first
+              navigate('/select-repository');
             } else {
-              // For other OAuth sources (if any), also go to audit page
+              // For other OAuth sources (if any), go to audit page
               navigate('/audit');
             }
           }, 1500);
@@ -118,7 +118,7 @@ export const AuthCallbackPage: React.FC = () => {
           <h2 className="text-2xl font-bold mb-4">Welcome to VibeCheckr!</h2>
           <p className="text-gray-600">
             {source === 'github' 
-              ? 'GitHub connected successfully. Taking you to your dashboard...'
+              ? 'GitHub connected successfully. Now select a repository to analyze...'
               : 'Authentication successful. Redirecting to your dashboard...'
             }
           </p>

@@ -29,7 +29,7 @@ export class GitHubAuthService {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'github',
         options: {
-          scopes: 'read:user user:email',
+          scopes: 'read:user user:email repo',
           redirectTo: `${window.location.origin}/auth/callback?source=github`
         }
       });
@@ -119,6 +119,19 @@ export class GitHubAuthService {
     } catch (error) {
       console.error('Error checking GitHub connection:', error);
       return false;
+    }
+  }
+
+  /**
+   * Get GitHub access token from current session
+   */
+  static async getAccessToken(): Promise<string | null> {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      return session?.provider_token || null;
+    } catch (error) {
+      console.error('Error getting access token:', error);
+      return null;
     }
   }
 }

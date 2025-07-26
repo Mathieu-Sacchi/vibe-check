@@ -11,6 +11,7 @@ import { AuthCallbackPage } from './pages/AuthCallbackPage';
 import { AuditPage } from './pages/AuditPage';
 import { PaymentPage } from './pages/PaymentPage';
 import { UserProfilePage } from './pages/UserProfilePage';
+import { RepositorySelectionPage } from './pages/RepositorySelectionPage';
 
 function App() {
   return (
@@ -24,6 +25,14 @@ function App() {
               <Route path="/signin" element={<SignInPage />} />
               <Route path="/signup" element={<SignUpPage />} />
               <Route path="/auth/callback" element={<AuthCallbackPage />} />
+              <Route 
+                path="/select-repository" 
+                element={
+                  <ProtectedRoute>
+                    <RepositorySelectionPage />
+                  </ProtectedRoute>
+                } 
+              />
               <Route 
                 path="/audit" 
                 element={
