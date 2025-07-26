@@ -51,36 +51,32 @@ export async function runAudit(repoPath: string, prompts: string[]): Promise<Aud
         prompt: `${systemPrompt}\n\n${prompt}`,
         options: {
           cwd: repoPath,
-          maxTurns: 2
+          maxTurns: 20  // Let Claude complete its full analysis
         }
       })) {
         messages.push(message);
       }
       
-      // Extract the final message - simplified approach
-      const finalMessage = messages[messages.length - 1];
-      if (finalMessage && 'text' in finalMessage) {
-        try {
-          // Try to parse as JSON, fallback to text
-          const jsonContent = JSON.parse(String(finalMessage.text));
-          results.push(jsonContent);
-          console.log(`✓ Prompt ${i + 1} completed successfully`);
-        } catch (parseError) {
-          // If not valid JSON, treat as text response
-          results.push({
-            issue_type: 'analysis_complete',
-            explanation: String(finalMessage.text),
-            severity: 'info'
-          });
-          console.log(`✓ Prompt ${i + 1} completed (text response)`);
-        }
-      } else {
-        console.warn(`No content in response for prompt ${i + 1}`);
-        results.push({
-          error: 'No content in Claude response',
-          prompt: prompt.substring(0, 100) + '...'
-        });
-      }
+      // LOG ALL RAW MESSAGES FROM CLAUDE
+      console.log(`\n=== RAW CLAUDE RESPONSE FOR PROMPT ${i + 1} ===`);
+      console.log(`Total messages received: ${messages.length}`);
+      
+      messages.forEach((msg: any, index: number) => {
+        console.log(`\n--- Message ${index + 1} ---`);
+        console.log(`Type: ${msg.type || 'unknown'}`);
+        console.log(`Keys: [${Object.keys(msg).join(', ')}]`);
+        console.log(`Full message:`, JSON.stringify(msg, null, 2));
+      });
+      
+      console.log(`\n=== END RAW CLAUDE RESPONSE ===\n`);
+      
+      // For now, just store the raw messages so you can see everything
+      results.push({
+        prompt_index: i + 1,
+        raw_messages: messages,
+        message_count: messages.length,
+        debug_info: 'Raw Claude SDK response - see console logs above'
+      });
     } catch (error) {
       console.error(`Claude SDK error for prompt ${i + 1}:`, error);
       results.push({
