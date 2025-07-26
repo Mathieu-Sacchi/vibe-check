@@ -12,8 +12,11 @@ AI-powered GitHub repository audit tool using Claude Code SDK.
 2. **Set up environment:**
    ```bash
    cp .env.example .env
-   # Edit .env with your Claude API key
+   # Edit .env with your Anthropic API key
    ```
+   
+   Required environment variables:
+   - `ANTHROPIC_API_KEY`: Your Anthropic Claude API key
 
 3. **Run development server:**
    ```bash
@@ -60,6 +63,31 @@ Response:
   "path": "/tmp/vibe-abc123-def456",
   "files": 3
 }
+```
+
+## Using the Audit Service
+
+To run an audit programmatically:
+
+```typescript
+import { runAudit } from './src/services/audit';
+import { cloneRepo, cleanupRepo } from './src/services/git';
+import { AUDIT_PROMPTS } from './prompts/auditPrompts';
+
+// Clone repository
+const repoPath = await cloneRepo('https://github.com/octocat/Hello-World');
+
+// Run audit with selected prompts
+const result = await runAudit(repoPath, [
+  AUDIT_PROMPTS.secrets,
+  AUDIT_PROMPTS.security
+]);
+
+console.log('Audit results:', result.raw);
+console.log('Report saved to:', result.mdPath);
+
+// Cleanup
+await cleanupRepo(repoPath);
 ```
 
 ## Project Structure
