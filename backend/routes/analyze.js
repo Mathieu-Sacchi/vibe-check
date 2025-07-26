@@ -2,7 +2,7 @@ const express = require('express');
 const multer = require('multer');
 const { cloneRepo, extractZip, cleanupTemp } = require('../utils/fileManager');
 const { runScanners } = require('../services/scanners');
-const { analyzeWithAI } = require('../services/ai');
+const { analyzeWithAI, analyzeRepo, findCodeFiles } = require('../services/ai');
 
 const router = express.Router();
 
@@ -35,24 +35,34 @@ router.post('/', upload.single('repo'), async (req, res) => {
       await extractZip(uploadedFile.path, tempPath);
     }
 
-    // Run security scanners
+    // Run security scanners first
     console.log('🔍 Running security scanners...');
     const scanResults = await runScanners(tempPath);
 
     let analysisResult;
 
     if (scanResults.issues.length > 0) {
-      // Use scanner results
+      // Use scanner results and enhance with Claude
+      console.log('🔍 Scanner results found, enhancing with Claude analysis...');
+      const files = await findCodeFiles(tempPath);
+      const claudeAnalysis = await analyzeRepo(files);
+      
+      // Merge scanner results with Claude analysis
       analysisResult = {
-        score: Math.max(0, 100 - (scanResults.issues.length * 10)),
-        summary: `Found ${scanResults.issues.length} issues via security scanners`,
-        issues: scanResults.issues
+        ...claudeAnalysis,
+        scanner_issues: scanResults.issues,
+        analysis_method: 'scanners + claude'
       };
     } else {
-      // Fallback to AI analysis
-      console.log('🤖 No scanner results, falling back to AI analysis...');
-      analysisResult = await analyzeWithAI(tempPath);
+      // Use Claude analysis only
+      console.log('🤖 No scanner results, using Claude analysis...');
+      const files = await findCodeFiles(tempPath);
+      analysisResult = await analyzeRepo(files);
+      analysisResult.analysis_method = 'claude_only';
     }
+
+    // Add source information
+    analysisResult.source = githubUrl || uploadedFile.originalname;
 
     res.json(analysisResult);
 

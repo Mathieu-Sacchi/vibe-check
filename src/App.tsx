@@ -3,21 +3,40 @@ import { Shield, Upload, Github, Copy, AlertTriangle, CheckCircle, XCircle } fro
 import axios from 'axios';
 import toast, { Toaster } from 'react-hot-toast';
 
-interface Issue {
+interface CriticalIssue {
   category: string;
   severity: 'critical' | 'high' | 'medium' | 'low';
-  file: string;
+  title: string;
   description: string;
+  files_affected: string[];
+  line_ranges: number[][];
+  impact: string;
   recommendation: string;
   cursor_prompt: string;
 }
 
+interface CategoryAnalysis {
+  name: string;
+  score: number;
+  issues_found: number;
+  top_concern: string;
+}
+
 interface AnalysisResult {
   score: number;
+  project_type: string;
   summary: string;
-  issues: Issue[];
+  critical_issues: CriticalIssue[];
+  categories_analyzed: CategoryAnalysis[];
+  positive_findings: string[];
+  next_steps: string[];
   analyzedAt: string;
   source: string;
+  filesAnalyzed?: number;
+  totalFiles?: number;
+  analysisCompleteness?: string;
+  analysis_method?: string;
+  scanner_issues?: any[];
 }
 
 function App() {
@@ -43,7 +62,7 @@ function App() {
 
   useEffect(() => {
     if (result) {
-      console.log('✅ RESULT RECEIVED - Score:', result.score, 'Issues:', result.issues.length);
+      console.log('✅ RESULT RECEIVED - Score:', result.score, 'Issues:', result.critical_issues.length);
       console.log('🎯 RENDERING RESULTS - Score:', result.score);
       console.log('📋 Full Result:', JSON.stringify(result, null, 2));
     }
@@ -287,23 +306,85 @@ function App() {
                 <div className="text-white/60 text-sm mb-4">Security Score / 100</div>
                 <div className="text-white/90 text-lg">{result.summary}</div>
                 <div className="text-white/60 text-sm mt-2">
-                  Analyzed: {new Date(result.analyzedAt).toLocaleString()}
+                  Project Type: {result.project_type} • Analyzed: {new Date(result.analyzedAt).toLocaleString()}
                 </div>
                 <div className="text-white/60 text-sm">
-                  Source: {result.source}
+                  Source: {result.source} • Method: {result.analysis_method || 'claude'}
                 </div>
+                {result.filesAnalyzed && (
+                  <div className="text-white/60 text-sm">
+                    Files: {result.filesAnalyzed}/{result.totalFiles} • Completeness: {result.analysisCompleteness || 'complete'}
+                  </div>
+                )}
               </div>
             </div>
 
+            {/* Categories Analysis */}
+            {result.categories_analyzed && result.categories_analyzed.length > 0 && (
+              <div className="bg-white/10 backdrop-blur-sm rounded-2xl border border-white/20 p-8">
+                <h3 className="text-xl font-semibold text-white mb-6">Analysis Categories</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {result.categories_analyzed.map((category, index) => (
+                    <div key={index} className="bg-white/10 border border-white/20 rounded-xl p-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-white font-medium capitalize">{category.name}</span>
+                        <span className={`text-lg font-bold ${getScoreColor(category.score)}`}>
+                          {category.score}
+                        </span>
+                      </div>
+                      <div className="text-white/60 text-sm mb-2">
+                        {category.issues_found} issues found
+                      </div>
+                      <div className="text-white/70 text-xs">
+                        {category.top_concern}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Positive Findings */}
+            {result.positive_findings && result.positive_findings.length > 0 && (
+              <div className="bg-white/10 backdrop-blur-sm rounded-2xl border border-white/20 p-8">
+                <h3 className="text-xl font-semibold text-white mb-6">Positive Findings</h3>
+                <div className="space-y-2">
+                  {result.positive_findings.map((finding, index) => (
+                    <div key={index} className="flex items-start space-x-2">
+                      <CheckCircle className="w-5 h-5 text-green-400 mt-0.5 flex-shrink-0" />
+                      <span className="text-white/80">{finding}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Next Steps */}
+            {result.next_steps && result.next_steps.length > 0 && (
+              <div className="bg-white/10 backdrop-blur-sm rounded-2xl border border-white/20 p-8">
+                <h3 className="text-xl font-semibold text-white mb-6">Recommended Next Steps</h3>
+                <div className="space-y-3">
+                  {result.next_steps.map((step, index) => (
+                    <div key={index} className="flex items-start space-x-3">
+                      <div className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0">
+                        {index + 1}
+                      </div>
+                      <span className="text-white/80">{step}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Issues List */}
-            {result.issues.length > 0 && (
+            {result.critical_issues.length > 0 && (
               <div className="bg-white/10 backdrop-blur-sm rounded-2xl border border-white/20 p-8">
                 <h3 className="text-xl font-semibold text-white mb-6">
-                  Issues Found ({result.issues.length})
+                  Issues Found ({result.critical_issues.length})
                 </h3>
                 
                 <div className="space-y-4">
-                  {result.issues.map((issue, index) => (
+                  {result.critical_issues.map((issue, index) => (
                     <div
                       key={index}
                       className="bg-white/10 border border-white/20 rounded-xl p-6 hover:bg-white/15 transition-colors"
@@ -311,7 +392,7 @@ function App() {
                       <div className="flex items-start justify-between mb-3">
                         <div className="flex items-center space-x-3">
                           {getSeverityIcon(issue.severity)}
-                          <span className="text-white font-medium">{issue.file}</span>
+                          <span className="text-white font-medium">{issue.title}</span>
                           <span className={`px-2 py-1 rounded-full text-xs font-medium border ${getSeverityColor(issue.severity)}`}>
                             {issue.severity.toUpperCase()}
                           </span>
@@ -326,6 +407,26 @@ function App() {
                           <h4 className="text-white/90 font-medium mb-1">Description</h4>
                           <p className="text-white/70 text-sm">{issue.description}</p>
                         </div>
+                        
+                        {issue.files_affected && issue.files_affected.length > 0 && (
+                          <div>
+                            <h4 className="text-white/90 font-medium mb-1">Files Affected</h4>
+                            <div className="flex flex-wrap gap-2">
+                              {issue.files_affected.map((file, fileIndex) => (
+                                <span key={fileIndex} className="px-2 py-1 bg-gray-700 text-gray-200 rounded text-xs">
+                                  {file}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        
+                        {issue.impact && (
+                          <div>
+                            <h4 className="text-white/90 font-medium mb-1">Impact</h4>
+                            <p className="text-white/70 text-sm">{issue.impact}</p>
+                          </div>
+                        )}
                         
                         <div>
                           <h4 className="text-white/90 font-medium mb-1">Recommendation</h4>
@@ -354,7 +455,7 @@ function App() {
               </div>
             )}
 
-            {result.issues.length === 0 && (
+            {result.critical_issues.length === 0 && (
               <div className="bg-white/10 backdrop-blur-sm rounded-2xl border border-white/20 p-8 text-center">
                 <CheckCircle className="w-16 h-16 text-green-400 mx-auto mb-4" />
                 <h3 className="text-xl font-semibold text-white mb-2">No Issues Found</h3>
